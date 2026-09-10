@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="description" content="A small private page for keeping track of two school timetables.">
+<title>Timetable</title>
+
+<meta name="theme-color" content="#FBF8F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Timetable">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<a href="#panel-now" class="skiplink">Skip to content</a>
+
+<header class="topbar">
+  <div class="shell topbar-in">
+    <div class="brand">
+      <h1>Timetable</h1>
+      <span class="sub">Tess &amp; Finn</span>
+    </div>
+    <div class="topbar-right">
+      <div class="clock">
+        <span id="clockTime">--:--</span>
+        <small id="clockDate">&nbsp;</small>
+      </div>
+      <button class="weekbadge" id="weekBadge" type="button" data-week="blue">
+        <span class="swatch" aria-hidden="true"></span>
+        <span id="weekBadgeText">Week</span>
+      </button>
+      <button class="iconbtn" id="themeBtn" type="button" aria-label="Change colour scheme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2"/>
+          <path d="M12 2.4v2.2M12 19.4v2.2M2.4 12h2.2M19.4 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+  <nav class="nav" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" data-tab="now"  id="tab-now"  aria-controls="panel-now"  aria-selected="true">
+      <span class="dot" aria-hidden="true"></span><span>Now</span></button>
+    <button type="button" role="tab" data-tab="tess" id="tab-tess" aria-controls="panel-tess" aria-selected="false" data-who="tess">
+      <span class="dot" aria-hidden="true"></span><span>Tess</span></button>
+    <button type="button" role="tab" data-tab="finn" id="tab-finn" aria-controls="panel-finn" aria-selected="false" data-who="finn">
+      <span class="dot" aria-hidden="true"></span><span>Finn</span></button>
+    <button type="button" role="tab" data-tab="week" id="tab-week" aria-controls="panel-week" aria-selected="false">
+      <span class="dot" aria-hidden="true"></span><span>Fortnight</span></button>
+  </nav>
+
+<div id="simStrip" class="shell" hidden style="padding-top:10px">
+  <div class="notice" data-tone="warn">
+    <span class="ic" aria-hidden="true">⏱</span>
+    <span class="body"><strong id="simText"></strong>
+    <span class="sub">Testing mode. Remove the query string from the address to go back to the real time.</span></span>
+  </div>
+</div>
+
+<main class="shell">
+  <div class="panel stack" id="panel-now"  role="tabpanel" aria-labelledby="tab-now"  tabindex="-1"></div>
+  <div class="panel stack" id="panel-tess" role="tabpanel" aria-labelledby="tab-tess" tabindex="-1" hidden></div>
+  <div class="panel stack" id="panel-finn" role="tabpanel" aria-labelledby="tab-finn" tabindex="-1" hidden></div>
+  <div class="panel"       id="panel-week" role="tabpanel" aria-labelledby="tab-week" tabindex="-1" hidden></div>
+
+  <p class="foot no-print">
+    <a href="about.html">About this page and what changed</a>
+    <span aria-hidden="true"> · </span>
+    <span id="buildStamp"></span>
+  </p>
+</main>
+
+<div id="liveRegion" class="sr" role="status" aria-live="polite"></div>
+<div id="toast" class="toast" hidden></div>
+
+<script src="js/config.js"></script>
+<script src="js/timetable.js"></script>
+<script src="js/clubs.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

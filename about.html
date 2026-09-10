@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>About</title>
+<meta name="theme-color" content="#FBF8F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="shell topbar-in">
+    <div class="brand"><h1>About</h1><span class="sub">what this is, and what changed</span></div>
+    <div class="topbar-right">
+      <a class="weekbadge" href="index.html" style="text-decoration:none">← Back</a>
+    </div>
+  </div>
+</header>
+
+<main class="shell" style="padding-top:20px;padding-bottom:60px">
+<div class="prose">
+
+  <p style="font-size:17px;color:var(--ink)">Two children, two year groups, a timetable that runs on a
+  fortnightly rota, and a school day divided by bells at eight different times. Somebody in this house is
+  always asking which week it is. This page answers that.</p>
+
+  <h2>What it does</h2>
+  <p>It knows both timetables and it knows what time it is, so it can tell you where Tess and Finn are
+  right now, what room they are in, who is teaching them and how long is left. It works out Week Red and
+  Week Blue from the calendar rather than asking you. In the afternoon it switches to tomorrow's bag. In
+  the morning it counts down to the first bell. If Food Technology is coming on Friday it starts saying so
+  on the Wednesday, which is when the shopping has to happen rather than when the panic does.</p>
+
+  <p>It is also for Tess and Finn, not only for us. Their tab opens on their own day as a vertical
+  timeline, which is the shape you want when the actual question is "what have I got after break".
+  If you tell it who you are, it opens on the right tab next time.</p>
+
+  <h3>The fortnightly rota</h3>
+  <p>The week colour is worked out from one anchor date in the code, so it should be right without anyone
+  touching it. The catch is that the rota pauses over half-term, so it drifts by one week after most
+  holidays. When it does: press and hold the week badge in the top right and it shifts by one, and
+  remembers. Uploading a new term's timetable resets it properly.</p>
+
+  <h3>How it is built</h3>
+  <p>It is four files of plain JavaScript, one stylesheet and no framework. Nothing to install, nothing to
+  build, no dependencies to keep an eye on. Each term's timetable is one file that gets replaced. It caches
+  itself so it still works on the walk to school where the signal goes, and you can add it to a phone home
+  screen and it behaves like an app.</p>
+
+  <h3>A note on what is public</h3>
+  <p>The school name is not in here anywhere, and the page asks search engines not to index it. Teachers'
+  names are, because "who do I email about the missing homework" is one of the questions this is for. That
+  is a deliberate choice rather than an oversight, and it is one line to change if it stops feeling right.</p>
+
+  <h2>Diary</h2>
+
+  <div class="entry" data-milestone="1">
+    <div class="entry-date">10 September 2026 · milestone</div>
+    <h3>Rebuilt from scratch</h3>
+    <p>Gemini produced a first version of this and it was a decent skeleton: both timetables were in there,
+    the bell times were right, and the idea of a live "where are they" card was the right idea. Three things
+    were wrong with it, and one of them mattered a lot.</p>
+    <p>The small one: it re-rendered the entire page once a second to move a clock, which on a phone is a
+    way of turning a timetable into a hand warmer. The medium one: on a phone it was a wide table you had
+    to scroll sideways, which is the layout you get when nobody has stood in a kitchen at ten past eight
+    trying to read it.</p>
+    <p><strong>The one that mattered:</strong> Week Red and Week Blue were the wrong way round for Tess.
+    Her real Week Red Monday is English, History, Chemistry, Computer Science and Maths, and that had been
+    filed under Blue. Which meant Food Technology, the only lesson on either timetable that needs a
+    supermarket trip, was being flagged in the wrong week. There was also no anchor date at all, so the
+    week colour was just whatever the toggle happened to be sitting on when you opened it.</p>
+    <p>The fix for the fix is the interesting bit. Getting the label right today would have been a
+    one-liner and wrong again by Christmas. Instead the colour now comes from a single anchor date, and
+    the timetables were re-transcribed from the paper sheets rather than trusted. Finn's turned out to be
+    correct all along, which is a useful reminder that a model being wrong once tells you nothing about
+    whether it was wrong twice.</p>
+    <p>Also new: a morning mode that takes over before the first bell, kit warnings that come from a rule
+    per subject rather than one hard-coded reminder about Food Tech, tickable bag lists, dark mode, and a
+    teacher directory so the name at the bottom of an email means something.</p>
+  </div>
+
+  <div class="entry">
+    <div class="entry-date">10 September 2026</div>
+    <h3>Rooms we do not know</h3>
+    <p>Both sheets print UNKNOWN in the room column for every PE lesson, which is presumably the school's
+    way of saying it depends on the weather. The earlier version filled those in with "Gym/Field", which
+    reads like information and is not. They now say TBC, which is honest and slightly less useful, and that
+    is the right trade.</p>
+  </div>
+
+  <div class="entry">
+    <div class="entry-date">Next</div>
+    <h3>Clubs</h3>
+    <p>The scaffolding is in and empty. Clubs live in one file so that all four of us see the same thing
+    rather than each phone keeping its own version. Once they are in, they appear on the evening view, in
+    the timeline after the last lesson, and in the bag list, and the ones that need collecting say so.</p>
+  </div>
+
+</div>
+</main>
+
+<p class="foot"><a href="index.html">Back to the timetable</a></p>
+
+</body>
+</html>
