@@ -872,3 +872,59 @@ table.grid td[data-today="1"] { background: color-mix(in srgb, var(--live) 5%, t
   transition: top .16s ease;
 }
 .skiplink:focus { top: 12px; }
+
+
+/* ---------- person accents anywhere ---------- */
+[data-who="tess"] { --accent: var(--tess); --accent-bg: var(--tess-bg); --accent-line: var(--tess-line); }
+[data-who="finn"] { --accent: var(--finn); --accent-bg: var(--finn-bg); --accent-line: var(--finn-line); }
+
+/* ---------- a day's activities ---------- */
+.plan { display: grid; gap: 6px; }
+.plan-item {
+  display: grid; grid-template-columns: 46px 10px minmax(0, 1fr) auto;
+  gap: 0 10px; align-items: center;
+  padding: 9px 12px; border-radius: var(--r-md);
+  background: var(--card-2); border: 1px solid var(--line);
+}
+.plan-time { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-3); line-height: 1.3; }
+.plan-time b { display: block; color: var(--ink-2); font-weight: 650; font-size: 12.5px; }
+.plan-dot { width: 10px; height: 10px; border-radius: 3px; background: var(--accent, var(--ink-3)); }
+.plan-what { min-width: 0; }
+.plan-name { display: block; font-weight: 700; font-size: 14.5px; letter-spacing: -.005em; }
+.plan-meta { display: block; font-size: 12.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+.plan-tag {
+  font-size: 10.5px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--line-2); color: var(--ink-2); white-space: nowrap;
+}
+.plan-item[data-state="now"] { background: var(--live-bg); border-color: color-mix(in srgb, var(--live) 45%, var(--line)); }
+.plan-item[data-state="now"] .plan-tag { background: var(--live); color: #fff; border-color: transparent; }
+.plan-item[data-state="done"] { opacity: .5; }
+.plan-note {
+  margin: 8px 0 0; padding: 8px 12px; border-radius: var(--r-sm);
+  font-size: 13px; color: var(--ink-2); background: var(--paper-2);
+  border-left: 3px solid var(--line-2);
+}
+.plan-note[data-tone="good"] { border-left-color: var(--live); }
+.plan-note[data-tone="warn"] { border-left-color: var(--warn); background: var(--warn-bg); color: var(--ink); }
+
+.spine .plan { margin-top: 12px; }
+.spine-quiet { margin-top: 8px; font-size: 13.5px; color: var(--ink-3); }
+
+/* ---------- the week outside school ---------- */
+.outday {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--line);
+}
+.outday:first-child { padding-top: 0; }
+.outday:last-child { border-bottom: 0; padding-bottom: 0; }
+.outday-name {
+  padding-top: 11px;
+  font-size: 11.5px; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3);
+}
+.outday[data-today="1"] .outday-name { color: var(--live); }
+.outday .quiet { display: block; padding-top: 10px; font-size: 13px; color: var(--ink-3); }
+
+/* clubs in a child's own timeline pick up that child's colour */
+.timeline .clubcard { border-left: 4px solid var(--accent, var(--line-2)); }
+.tl-row[data-state="now"] .clubcard { box-shadow: var(--shadow); }

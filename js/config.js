@@ -123,3 +123,10 @@ const DAYS = [
   { id: 'thu', name: 'Thursday',  short: 'Thu', dow: 4 },
   { id: 'fri', name: 'Friday',    short: 'Fri', dow: 5 }
 ];
+
+/* Weekends have no lessons but can have clubs. */
+const WEEKEND = [
+  { id: 'sat', name: 'Saturday',  short: 'Sat', dow: 6 },
+  { id: 'sun', name: 'Sunday',    short: 'Sun', dow: 0 }
+];
+const ALL_DAYS = DAYS.concat(WEEKEND);

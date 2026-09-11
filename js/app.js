@@ -38,6 +38,19 @@ const kitFor = s => CONFIG.kit[s] || null;
 const roomKnown = r => r && !CONFIG.unknownRoom.includes(r);
 const roomText = r => roomKnown(r) ? r : 'TBC';
 const person = id => CONFIG.people.find(p => p.id === id);
+const dayOf = date => ALL_DAYS.find(x => x.dow === date.getDay());
+const isHome = w => !!w && w.trim().toLowerCase() === 'home';
+const whereText = w => (isHome(w) ? 'At home' : (w || ''));
+
+/* Ring numbers: minutes for anything short, whole hours for a long day
+   at the stables, so it never reads "480 MIN". */
+function ringText(left, label) {
+  const hrs = left >= 90;
+  const halves = Math.round(left / 30);
+  const num = hrs ? Math.floor(halves / 2) + (halves % 2 ? '½' : '') + 'h' : String(Math.max(0, left));
+  const unit = label === 'min left' ? (hrs ? 'left' : 'min') : (label || 'left');
+  return { num, unit };
+}
 
 /* ---------- state ---------- */
 const store = {
@@ -73,9 +86,10 @@ function now() {
   if (!state.sim) return real;
   const d = new Date(real);
   if (state.sim.day) {
-    const target = DAYS.find(x => x.id === state.sim.day);
-    const dow = target ? target.dow : (state.sim.day === 'sat' ? 6 : 0);
-    d.setDate(d.getDate() + (dow - d.getDay()));
+    // Monday-first, so ?day=sun means the Sunday at the end of this week.
+    const target = ALL_DAYS.find(x => x.id === state.sim.day);
+    const dow = target ? target.dow : d.getDay();
+    d.setDate(d.getDate() + ((dow || 7) - (d.getDay() || 7)));
   }
   if (state.sim.time) { const [h, m] = state.sim.time.split(':').map(Number); d.setHours(h, m, 0, 0); }
   return d;
@@ -137,12 +151,83 @@ function eventsOn(who, week, dayId) {
     .sort((a, b) => MINS(a.start) - MINS(b.start));
 }
 
+/* Everything outside school on one day, for both children, in time
+   order. Pass a week to drop the other week's red- or blue-only items. */
+function activitiesOn(dayId, week) {
+  const out = [];
+  CLUBS.concat(FIXTURES).forEach(e => {
+    if (e.day !== dayId) return;
+    if (week && e.week && e.week !== 'both' && e.week !== week) return;
+    (Array.isArray(e.who) ? e.who : [e.who]).forEach(w => {
+      const p = person(w);
+      if (p) out.push(Object.assign({}, e, { who: w, person: p.name }));
+    });
+  });
+  return out.sort((a, b) => MINS(a.start) - MINS(b.start) || a.person.localeCompare(b.person));
+}
+
+/* The only logistics worth pointing out: two children at the same venue
+   at once (one trip), or at two different venues at once (a clash).
+   Anything at home needs nobody to drive, so it never counts. */
+function logistics(items) {
+  const notes = [];
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      const a = items[i], b = items[j];
+      if (a.who === b.who || isHome(a.where) || isHome(b.where) || !a.where || !b.where) continue;
+      const overlap = MINS(a.start) < MINS(b.end) && MINS(b.start) < MINS(a.end);
+      if (!overlap) continue;
+      if (a.where.trim().toLowerCase() === b.where.trim().toLowerCase()) {
+        notes.push({ tone: 'good', text: a.end === b.end
+          ? a.person + ' and ' + b.person + ' both finish at ' + a.where + ' at ' + a.end + ', so one collection.'
+          : a.person + ' and ' + b.person + ' are both at ' + a.where + ' (' + a.person + ' until ' + a.end + ', ' + b.person + ' until ' + b.end + ').' });
+      } else {
+        notes.push({ tone: 'warn', text: 'Two places at once: ' + a.person + ' at ' + a.where + ' and ' + b.person + ' at ' + b.where + ', ' +
+          (MINS(a.start) > MINS(b.start) ? a.start : b.start) + ' to ' + (MINS(a.end) < MINS(b.end) ? a.end : b.end) + '.' });
+      }
+    }
+  }
+  return notes;
+}
+
+function laterStatus(e, pill, mins) {
+  const delta = MINS(e.start) - mins;
+  return {
+    kind: 'later', tone: 'off', pill,
+    eyebrow: 'Later today', title: e.name,
+    chips: [{ t: e.start + '–' + e.end, cls: 'room' }, e.where ? { t: whereText(e.where), cls: '' } : null].filter(Boolean),
+    nextLabel: 'Starts in ' + humanMins(delta), nextWhen: e.start,
+    progress: null,
+    countdown: delta <= 120 ? delta : null, countdownLabel: 'to go'
+  };
+}
+
 /* ---------- status ---------- */
 function statusFor(who, date) {
   const mins = date.getHours() * 60 + date.getMinutes();
   const sd = schoolDay(date);
+  const today = dayOf(date);
+  const evs = eventsOn(who, weekFor(date), today.id);
+
+  // Something outside school happening right now beats everything else.
+  const ev = evs.find(e => mins >= MINS(e.start) && mins < MINS(e.end));
+  if (ev) {
+    const after = evs.find(e => MINS(e.start) >= MINS(ev.end));
+    const home = isHome(ev.where);
+    return {
+      kind: 'club', tone: 'live', pill: 'Until ' + ev.end,
+      eyebrow: ev.start + '–' + ev.end, title: ev.name,
+      chips: [ev.where ? { t: whereText(ev.where), cls: home ? '' : 'room' } : null,
+              ev.pickup === true ? { t: 'Needs collecting', cls: 'accent' } : null].filter(Boolean),
+      nextLabel: after ? after.name : (home ? 'Nothing else today' : 'Home'),
+      nextWhen: after ? after.start : (home ? '' : 'from ' + ev.end),
+      progress: { from: MINS(ev.start), to: MINS(ev.end) }, countdownLabel: 'min left'
+    };
+  }
+  const later = evs.filter(e => MINS(e.start) > mins);
 
   if (!sd) {
+    if (later.length) return laterStatus(later[0], today.name, mins);
     const nx = nextSchoolDay(date);
     const first = nx ? lessonAt(who, nx.week, nx.day.id, 'p1') : null;
     return {
@@ -151,18 +236,6 @@ function statusFor(who, date) {
       title: first ? first.subject : 'Nothing timetabled',
       chips: first ? chipsFor(first) : [],
       nextLabel: 'First bell', nextWhen: nx ? nx.day.short + ' 08:45' : '', progress: null
-    };
-  }
-
-  const ev = eventsOn(who, sd.week, sd.day.id)
-    .find(e => mins >= MINS(e.start) && mins < MINS(e.end));
-  if (ev) {
-    return {
-      kind: 'club', tone: 'live', pill: ev.type === 'club' ? 'At a club' : 'Out',
-      eyebrow: ev.type === 'club' ? 'Club' : 'Fixture', title: ev.name,
-      chips: [ev.where ? { t: ev.where, cls: 'room' } : null, ev.pickup ? { t: 'Pick-up', cls: 'accent' } : null].filter(Boolean),
-      nextLabel: ev.pickup ? 'Collect at ' + ev.end : 'Home after ' + ev.end, nextWhen: ev.start + '–' + ev.end,
-      progress: { from: MINS(ev.start), to: MINS(ev.end) }
     };
   }
 
@@ -178,14 +251,14 @@ function statusFor(who, date) {
   }
 
   if (mins >= DAY_END) {
-    const later = eventsOn(who, sd.week, sd.day.id).filter(e => MINS(e.start) >= mins);
+    if (later.length) return laterStatus(later[0], 'School done', mins);
     const nx = nextSchoolDay(date);
     const first = nx ? lessonAt(who, nx.week, nx.day.id, 'p1') : null;
+    const doneToday = evs.length ? 'Done for the day' : 'Finished at ' + CONFIG.dayEnd;
     return {
       kind: 'after', tone: 'off', pill: 'Day done',
-      eyebrow: later.length ? 'Still to come' : 'Finished at ' + CONFIG.dayEnd,
-      title: later.length ? later[0].name : 'Home',
-      chips: later.length && later[0].where ? [{ t: later[0].where, cls: 'room' }] : [],
+      eyebrow: doneToday, title: 'Home',
+      chips: [],
       nextLabel: nx ? (first ? first.subject : nx.day.name) : '—',
       nextWhen: nx ? nx.day.short + ' 08:45' : '', progress: null
     };
@@ -247,8 +320,8 @@ function upNext(who, sd, slot) {
     const l = lessonAt(who, sd.week, sd.day.id, b.id);
     if (l) return { label: l.subject, when: b.start, room: roomKnown(l.room) ? l.room : null };
   }
-  const ev = eventsOn(who, sd.week, sd.day.id)[0];
-  if (ev && MINS(ev.start) >= MINS(slot.end)) return { label: ev.name, when: ev.start, room: ev.where };
+  const ev = eventsOn(who, sd.week, sd.day.id).find(e => MINS(e.start) >= MINS(slot.end));
+  if (ev) return { label: ev.name, when: ev.start, room: isHome(ev.where) ? null : ev.where };
   return { label: 'Home', when: CONFIG.dayEnd, room: null };
 }
 
@@ -337,9 +410,13 @@ function spineHTML(d) {
   const mins = d.getHours() * 60 + d.getMinutes();
   if (!sd) {
     const nx = nextSchoolDay(d);
-    return '<div class="spine"><div class="spine-head"><span class="big">No school today</span>' +
-      (nx ? '<span class="meta">Back ' + esc(nx.day.name) + ', ' + esc(weekName(nx.week)) + '</span>' : '') +
-      '</div></div>';
+    const today = dayOf(d);
+    const items = activitiesOn(today.id, weekFor(d));
+    const datestr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+    return '<div class="spine"><div class="spine-head"><span class="big">' + esc(today.name) + '</span>' +
+      '<span class="meta">' + esc(datestr + ' · no school' + (nx ? ', back ' + nx.day.name + ' (' + weekName(nx.week) + ')' : '')) + '</span></div>' +
+      (items.length ? planHTML(items, mins) : '<p class="spine-quiet">Nothing on today.</p>') +
+      '</div>';
   }
   const slot = slotAt(mins);
   const segs = CONFIG.bells.map(b => {
@@ -369,6 +446,31 @@ function spineHTML(d) {
     '</div>';
 }
 
+/* ---------- render: a day's activities ---------- */
+function planHTML(items, mins, opts) {
+  opts = opts || {};
+  if (!items.length) return '';
+  const rows = items.map(i => {
+    let st = 'todo', tag = '';
+    if (mins != null) {
+      if (mins >= MINS(i.end)) { st = 'done'; tag = 'Done'; }
+      else if (mins >= MINS(i.start)) { st = 'now'; tag = 'Now'; }
+    }
+    if (!tag && opts.weekTags && i.week && i.week !== 'both') tag = (i.week === 'red' ? 'Red' : 'Blue') + ' only';
+    const meta = [i.person, whereText(i.where), i.pickup === true ? 'needs collecting' : null, i.note].filter(Boolean).join(' · ');
+    return '<li class="plan-item" data-who="' + esc(i.who) + '" data-state="' + st + '">' +
+      '<span class="plan-time"><b>' + esc(i.start) + '</b>' + esc(i.end) + '</span>' +
+      '<span class="plan-dot" aria-hidden="true"></span>' +
+      '<span class="plan-what"><span class="plan-name">' + esc(i.name) + '</span>' +
+      '<span class="plan-meta">' + esc(meta) + '</span></span>' +
+      (tag ? '<span class="plan-tag">' + esc(tag) + '</span>' : '') +
+      '</li>';
+  }).join('');
+  const notes = opts.notes === false ? '' : logistics(items).map(n =>
+    '<p class="plan-note" data-tone="' + n.tone + '">' + esc(n.text) + '</p>').join('');
+  return '<ul class="plan">' + rows + '</ul>' + notes;
+}
+
 /* ---------- render: person card ---------- */
 const RING_R = 32, RING_C = 2 * Math.PI * RING_R;
 
@@ -382,13 +484,13 @@ function personCardHTML(p, d) {
     const left = st.progress ? st.progress.to - mins : st.countdown;
     const frac = total > 0 ? clamp(1 - left / total, 0, 1) : 0;
     ring =
-      '<div class="ring" data-who="' + p.id + '" role="img" aria-label="' + esc(left + ' minutes ' + (st.countdownLabel || 'left')) + '">' +
+      '<div class="ring" data-who="' + p.id + '" role="img" aria-label="' + esc(humanMins(Math.max(0, left)) + ' ' + (st.countdownLabel === 'min left' ? 'left' : (st.countdownLabel || 'left'))) + '">' +
       '<svg viewBox="0 0 74 74" aria-hidden="true">' +
       '<circle class="track" cx="37" cy="37" r="' + RING_R + '"></circle>' +
       '<circle class="value" cx="37" cy="37" r="' + RING_R + '" stroke-dasharray="' + RING_C.toFixed(1) + '"' +
       ' stroke-dashoffset="' + (RING_C * (1 - frac)).toFixed(1) + '"></circle></svg>' +
-      '<span class="ring-label"><span class="ring-num">' + Math.max(0, left) + '</span>' +
-      '<span class="ring-unit">' + esc(st.countdownLabel === 'min left' ? 'min' : (st.countdownLabel || 'left')) + '</span></span></div>';
+      '<span class="ring-label"><span class="ring-num">' + esc(ringText(left, st.countdownLabel).num) + '</span>' +
+      '<span class="ring-unit">' + esc(ringText(left, st.countdownLabel).unit) + '</span></span></div>';
   }
 
   const chips = (st.chips || []).map(c =>
@@ -444,10 +546,15 @@ function morningHTML(d) {
       (roomKnown(l.room) ? ' in ' + esc(l.room) : '');
   }).filter(Boolean);
 
+  const tonight = activitiesOn(sd.day.id, sd.week).filter(i => MINS(i.start) >= DAY_END);
+  const tonightLine = tonight.length
+    ? ' Tonight: ' + tonight.map(i => esc(i.person) + ' has ' + esc(i.name) + ' at ' + esc(i.start)).join(', ') + '.'
+    : '';
+
   return '<section class="card card-pad morning">' +
     '<div class="person-eyebrow">' + esc(sd.day.name + ' morning · ' + weekName(sd.week)) + '</div>' +
     '<div class="morning-time">' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + '</div>' +
-    '<p class="morning-lead"><b>' + until + '</b> until the first bell. ' + firsts.join('. ') + '.</p>' +
+    '<p class="morning-lead"><b>' + until + '</b> until the first bell. ' + firsts.join('. ') + '.' + tonightLine + '</p>' +
     '</section>';
 }
 
@@ -495,7 +602,7 @@ function bagHTML(d) {
     const evs = eventsOn(p.id, sd.week, sd.day.id);
     const evHTML = evs.length ? '<div class="clubcard" style="margin-top:10px">' + evs.map(e =>
       '<div><span class="n">' + esc(e.name) + '</span><span class="m">' +
-      esc(e.start + '–' + e.end + (e.where ? ' · ' + e.where : '') + (e.pickup ? ' · pick-up' : '')) +
+      esc(e.start + '–' + e.end + (e.where ? ' · ' + whereText(e.where).toLowerCase() : '') + (e.pickup === true ? ' · needs collecting' : '')) +
       '</span></div>').join('') + '</div>' : '';
 
     return '<div class="card card-pad bag" data-who="' + p.id + '">' +
@@ -526,10 +633,21 @@ function renderNow(d) {
   const rest   = noticesHTML(ups.filter(u => !u.kit.critical));
   if (urgent) parts.push('<section class="stack">' + urgent + '</section>');
 
-  const heading = !schoolDay(d) ? 'Coming up'
-    : (mins >= DAY_START && mins < DAY_END) ? 'Right now' : 'Where they are';
+  const anyOut = CONFIG.people.some(p => statusFor(p.id, d).kind === 'club');
+  const heading = anyOut || (schoolDay(d) && mins >= DAY_START && mins < DAY_END) ? 'Right now'
+    : !schoolDay(d) ? 'Coming up' : 'Where they are';
   parts.push('<section><h2 class="sectionhead">' + heading + '</h2><div class="people">' +
     CONFIG.people.map(p => personCardHTML(p, d)).join('') + '</div></section>');
+
+  // Tonight, on school days, from mid-afternoon until the last thing ends.
+  const sdNow = schoolDay(d);
+  if (sdNow && mins >= MINS(CONFIG.bagFrom)) {
+    const tonight = activitiesOn(sdNow.day.id, sdNow.week).filter(i => MINS(i.start) >= DAY_END);
+    if (tonight.length && tonight.some(i => mins < MINS(i.end))) {
+      parts.push('<section><h2 class="sectionhead">Tonight</h2><div class="card card-pad">' +
+        planHTML(tonight, mins) + '</div></section>');
+    }
+  }
 
   if (rest) parts.push('<section><h2 class="sectionhead">Worth knowing</h2><div class="stack">' + rest + '</div></section>');
 
@@ -554,11 +672,14 @@ function renderNow(d) {
 }
 
 /* ---------- render: person panel ---------- */
-function fortnightDays(d) {
+function fortnightDays(d, who) {
   const thisWeek = weekFor(d);
   const out = [];
   [thisWeek, otherWeek(thisWeek)].forEach((w, wi) => {
     DAYS.forEach(day => out.push({ dayId: day.id, day, week: w, order: wi }));
+    WEEKEND.forEach(day => {
+      if (eventsOn(who, w, day.id).length) out.push({ dayId: day.id, day, week: w, order: wi, weekend: true });
+    });
   });
   return out;
 }
@@ -566,11 +687,17 @@ function fortnightDays(d) {
 function renderPerson(who, d) {
   const p = person(who);
   const sd = schoolDay(d);
-  const cur = state.cursor[who] || (sd ? { dayId: sd.day.id, week: sd.week } : { dayId: 'mon', week: weekFor(d) });
-  const list = fortnightDays(d);
+  const today = dayOf(d);
+  const todayWeek = weekFor(d);
+  let fallback;
+  if (sd) fallback = { dayId: sd.day.id, week: sd.week };
+  else if (eventsOn(who, todayWeek, today.id).length) fallback = { dayId: today.id, week: todayWeek };
+  else { const nx = nextSchoolDay(d); fallback = nx ? { dayId: nx.day.id, week: nx.week } : { dayId: 'mon', week: todayWeek }; }
+  const cur = state.cursor[who] || fallback;
+  const list = fortnightDays(d, who);
 
   const picker = '<div class="daypick-wrap"><div class="daypick no-print" role="group" aria-label="Pick a day">' + list.map(x => {
-    const isToday = sd && sd.day.id === x.dayId && sd.week === x.week;
+    const isToday = today.id === x.dayId && todayWeek === x.week;
     const on = cur.dayId === x.dayId && cur.week === x.week;
     return '<button type="button" data-day="' + x.dayId + '" data-week="' + x.week + '" data-who="' + who + '"' +
       ' aria-pressed="' + on + '" data-today="' + (isToday ? 1 : 0) + '">' +
@@ -579,11 +706,12 @@ function renderPerson(who, d) {
       '</button>';
   }).join('') + '</div></div>';
 
-  const showingToday = sd && cur.dayId === sd.day.id && cur.week === sd.week;
+  const showingToday = cur.dayId === today.id && cur.week === todayWeek;
   const mins = d.getHours() * 60 + d.getMinutes();
-  const slot = showingToday ? slotAt(mins) : null;
+  const slot = showingToday && sd ? slotAt(mins) : null;
+  const isSchoolDay = DAYS.some(x => x.id === cur.dayId);
 
-  const rows = CONFIG.bells.map(b => {
+  const rows = (isSchoolDay ? CONFIG.bells : []).map(b => {
     const isNow = slot && slot.id === b.id;
     const isPast = showingToday && mins >= MINS(b.end);
     const state_ = isNow ? 'now' : (isPast ? 'past' : 'todo');
@@ -614,20 +742,31 @@ function renderPerson(who, d) {
   });
 
   const evs = eventsOn(who, cur.week, cur.dayId);
+  if (isSchoolDay && evs.length) {
+    const outState = showingToday && mins >= DAY_END ? 'past' : 'todo';
+    rows.push('<div class="tl-row" data-state="' + outState + '">' +
+      '<div class="tl-time"><b>' + esc(CONFIG.dayEnd) + '</b></div>' +
+      '<div class="tl-rail"><span class="tl-node"></span></div>' +
+      '<div class="tl-body"><div class="interlude">School out</div></div></div>');
+  }
   evs.forEach(e => {
-    rows.push('<div class="tl-row" data-state="todo">' +
+    const isNow = showingToday && mins >= MINS(e.start) && mins < MINS(e.end);
+    const isPast = showingToday && mins >= MINS(e.end);
+    const meta = [whereText(e.where), e.pickup === true ? 'Needs collecting' : null, e.note].filter(Boolean).join(' · ');
+    rows.push('<div class="tl-row" data-state="' + (isNow ? 'now' : isPast ? 'past' : 'todo') + '">' +
       '<div class="tl-time"><b>' + esc(e.start) + '</b>' + esc(e.end) + '</div>' +
       '<div class="tl-rail"><span class="tl-node"></span></div>' +
-      '<div class="tl-body"><div class="clubcard" style="--accent-bg:var(--paper-2);--accent-line:var(--line)">' +
-      '<div class="n">' + esc(e.name) + '</div><div class="m">' +
-      esc((e.where ? e.where + ' · ' : '') + (e.pickup ? 'Pick-up needed' : 'Makes their own way home')) +
-      (e.note ? ' · ' + esc(e.note) : '') + '</div></div></div></div>');
+      '<div class="tl-body"><div class="clubcard">' +
+      (isNow ? '<div class="nowflag"><span class="beat" aria-hidden="true"></span>Now</div>' : '') +
+      '<div class="n">' + esc(e.name) + '</div>' +
+      (meta ? '<div class="m">' + esc(meta) + '</div>' : '') + '</div></div></div>');
   });
+  if (!rows.length) rows.push('<div class="empty">Nothing on.</div>');
 
-  const dayName = (DAYS.find(x => x.id === cur.dayId) || DAYS[0]).name;
+  const dayName = (ALL_DAYS.find(x => x.id === cur.dayId) || DAYS[0]).name;
 
   $('#panel-' + who).innerHTML =
-    '<section class="card card-pad" style="padding-bottom:10px">' +
+    '<section class="card card-pad" data-who="' + who + '" style="padding-bottom:10px">' +
       '<div class="rowbetween personhead" style="margin-bottom:10px">' +
         '<div class="grow"><h2 style="font-family:var(--serif);font-weight:600;font-size:22px;letter-spacing:-.02em;font-variation-settings:\'SOFT\' 40,\'WONK\' 1">' +
         esc(p.name) + '</h2>' +
@@ -637,7 +776,7 @@ function renderPerson(who, d) {
         esc(dayName + ', ' + weekName(cur.week)) + '</span>' +
       '</div>' + picker +
     '</section>' +
-    '<section class="card card-pad" style="margin-top:14px">' +
+    '<section class="card card-pad" data-who="' + who + '" style="margin-top:14px">' +
       '<div class="timeline">' + rows.join('') + '</div>' +
     '</section>';
 }
@@ -722,6 +861,24 @@ function teacherListHTML() {
   }).join('') : '<li class="empty">Nobody by that name.</li>';
 }
 
+function outsideSchoolHTML(d) {
+  const today = dayOf(d);
+  const any = ALL_DAYS.some(x => activitiesOn(x.id).length);
+  if (!any) {
+    return '<section style="margin-top:22px"><h2 class="sectionhead">Outside school</h2>' +
+      '<div class="card empty">No clubs yet. They go in <code>js/clubs.js</code>, one line each.</div></section>';
+  }
+  const rows = ALL_DAYS.map(x => {
+    const items = activitiesOn(x.id);
+    return '<div class="outday" data-today="' + (x.id === today.id ? 1 : 0) + '">' +
+      '<div class="outday-name">' + esc(x.short) + '</div>' +
+      '<div class="outday-body">' + (items.length ? planHTML(items, null, { weekTags: true }) : '<span class="quiet">Nothing on</span>') + '</div>' +
+      '</div>';
+  }).join('');
+  return '<section style="margin-top:22px"><h2 class="sectionhead">Outside school</h2>' +
+    '<div class="card card-pad"><div class="outweek">' + rows + '</div></div></section>';
+}
+
 function renderWeek(d) {
   const who = state.gridWho;
   const wk = weekFor(d);
@@ -749,6 +906,7 @@ function renderWeek(d) {
       gridTableHTML(who, wk, d) +
       gridTableHTML(who, otherWeek(wk), d) +
     '</div>' +
+    outsideSchoolHTML(d) +
     '<section style="margin-top:22px"><h2 class="sectionhead">The bells</h2>' +
       '<div class="card card-pad"><div class="bells">' + bells + '</div></div></section>' +
     '<section style="margin-top:22px"><h2 class="sectionhead">Who teaches what</h2>' +
@@ -784,8 +942,9 @@ function signature(d) {
   const sd = schoolDay(d);
   const mins = d.getHours() * 60 + d.getMinutes();
   const slot = slotAt(mins);
+  const who = CONFIG.people.map(p => { const st = statusFor(p.id, d); return st.kind + ':' + st.title; }).join(',');
   return [state.tab, isoOf(d), sd ? sd.week : '-', slot ? slot.id : (mins < DAY_START ? 'pre' : 'post'),
-          state.gridWho, JSON.stringify(state.cursor)].join('|');
+          state.gridWho, JSON.stringify(state.cursor), who].join('|');
 }
 
 function tick() {
@@ -809,8 +968,11 @@ function tick() {
     const frac = total > 0 ? clamp(1 - left / total, 0, 1) : 0;
     const v = r.querySelector('.value');
     if (v) v.setAttribute('stroke-dashoffset', (RING_C * (1 - frac)).toFixed(1));
+    const rt = ringText(left, st.countdownLabel);
     const n = r.querySelector('.ring-num');
-    if (n) n.textContent = Math.max(0, left);
+    if (n) n.textContent = rt.num;
+    const u = r.querySelector('.ring-unit');
+    if (u) u.textContent = rt.unit;
   });
 }
 

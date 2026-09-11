@@ -4,7 +4,7 @@
    on the next load instead of whenever the cache happens to expire.
    The cache is only there for the stretch of the walk to school with no
    signal. Bump CACHE when you change the file list. */
-const CACHE = 'timetable-v1';
+const CACHE = 'timetable-v2';
 const FILES = [
   './', './index.html', './about.html',
   './css/app.css',

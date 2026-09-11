@@ -10,7 +10,7 @@ Open `index.html` in a browser, or serve the folder and add it to a phone home s
 | File | What is in it |
 |---|---|
 | `js/timetable.js` | Both timetables. Replace this each term. |
-| `js/clubs.js` | Clubs and anything else after 15:40. One line each. |
+| `js/clubs.js` | Clubs, lessons and anything else outside school, weekends included. One line each. |
 | `js/config.js` | The week anchor, bell times, kit rules, who's who. |
 
 ## Each new term

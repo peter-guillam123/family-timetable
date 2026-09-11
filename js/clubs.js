@@ -8,13 +8,20 @@
      week   'both' | 'red' | 'blue'
      start  '15:45'   end '16:45'
      name   what it is
-     where  where it is
-     pickup true if somebody has to go and get them
+     where  where it is. Write 'Home' for anything at the house:
+            it shows as "At home" and never counts as a trip.
+     pickup true if somebody has to go and get them. Leave it out
+            if unsure: the app says nothing rather than guessing.
      kit    optional string, appears in the bag list
      note   optional, appears on the card
 
    Clubs live in this file rather than in the app so that all
    four of us see the same thing. Nothing is stored per phone.
+
+   If two children are at the same venue at the same time the app
+   says "one collection"; at two different venues at once it flags
+   the clash. Weekend days show up in a child's day picker only if
+   they have something on.
    ============================================================= */
 
 const CLUBS = [
